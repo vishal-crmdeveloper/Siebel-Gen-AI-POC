@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle Siebel × Gen AI | Order Summarization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #07070e;
+            --bg-secondary: #0d0d1a;
+            --bg-card: rgba(15, 15, 30, 0.7);
+            --bg-input: rgba(20, 20, 45, 0.6);
+            --border: rgba(100, 80, 220, 0.15);
+            --border-focus: rgba(120, 90, 255, 0.5);
+            --text-primary: #e8e6f0;
+            --text-secondary: #9590b0;
+            --text-muted: #6b6590;
+            --accent-1: #7c5cfc;
+            --accent-2: #4f8aff;
+            --accent-3: #a855f7;
+            --gradient: linear-gradient(135deg, #7c5cfc, #4f8aff);
+            --gradient-glow: linear-gradient(135deg, #7c5cfc, #a855f7, #4f8aff);
+            --danger: #f43f5e;
+            --success: #10b981;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ── Background Effect ── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 20% 50%, rgba(124, 92, 252, 0.06) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 20%, rgba(79, 138, 255, 0.04) 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 80%, rgba(168, 85, 247, 0.03) 0%, transparent 50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ── Header ── */
+        .header {
+            position: relative;
+            z-index: 10;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(7, 7, 14, 0.8);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: var(--gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 20px rgba(124, 92, 252, 0.3);
+        }
+
+        .logo-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            background: var(--gradient-glow);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-text span {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .header-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        .header-badge::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        }
+
+        /* ── Main Layout ── */
+        .main {
+            position: relative;
+            z-index: 10;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: calc(100vh - 82px);
+        }
+
+        /* ── Panels ── */
+        .panel {
+            padding: 32px;
+            overflow-y: auto;
+            max-height: calc(100vh - 82px);
+        }
+
+        .panel-left {
+            border-right: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 3px;
+            height: 18px;
+            background: var(--gradient);
+            border-radius: 2px;
+        }
+
+        /* ── Form Styles ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.1);
+            background: rgba(25, 25, 55, 0.8);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .form-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239590b0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        /* ── Section Dividers ── */
+        .section-divider {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0;
+        }
+
+        .section-divider span {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            white-space: nowrap;
+        }
+
+        .section-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Line Items ── */
+        .line-items-container {
+            grid-column: 1 / -1;
+        }
+
+        .line-item {
+            display: grid;
+            grid-template-columns: 2fr 0.7fr 1fr 1fr 36px;
+            gap: 10px;
+            align-items: end;
+            padding: 12px;
+            background: rgba(10, 10, 25, 0.5);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .line-item:hover {
+            border-color: rgba(124, 92, 252, 0.2);
+        }
+
+        .line-item .form-label {
+            font-size: 10px;
+        }
+
+        .btn-remove-item {
+            width: 32px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(244, 63, 94, 0.1);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            border-radius: 6px;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .btn-remove-item:hover {
+            background: rgba(244, 63, 94, 0.2);
+            transform: scale(1.05);
+        }
+
+        .btn-add-item {
+            grid-column: 1 / -1;
+            padding: 10px;
+            background: transparent;
+            border: 1px dashed rgba(124, 92, 252, 0.3);
+            border-radius: var(--radius-sm);
+            color: var(--accent-1);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-add-item:hover {
+            background: rgba(124, 92, 252, 0.05);
+            border-color: rgba(124, 92, 252, 0.5);
+        }
+
+        /* ── Question Box ── */
+        .question-box {
+            grid-column: 1 / -1;
+            margin-top: 4px;
+        }
+
+        .question-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(124, 92, 252, 0.04);
+            border: 1px solid rgba(124, 92, 252, 0.2);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .question-input::placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .question-input:focus {
+            border-color: var(--accent-1);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.1), 0 0 20px rgba(124, 92, 252, 0.05);
+        }
+
+        .question-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* ── Submit Button ── */
+        .btn-submit {
+            grid-column: 1 / -1;
+            margin-top: 8px;
+            padding: 14px 28px;
+            background: var(--gradient);
+            border: none;
+            border-radius: var(--radius);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-submit::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-submit:hover::before {
+            left: 100%;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 30px rgba(124, 92, 252, 0.35);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* ── Order Total Display ── */
+        .order-total {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            background: rgba(124, 92, 252, 0.06);
+            border: 1px solid rgba(124, 92, 252, 0.12);
+            border-radius: var(--radius-sm);
+        }
+
+        .order-total-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .order-total-value {
+            font-size: 22px;
+            font-weight: 700;
+            background: var(--gradient-glow);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ── Response Panel ── */
+        .response-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60%;
+            text-align: center;
+            gap: 16px;
+        }
+
+        .placeholder-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(124, 92, 252, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+
+        .placeholder-text {
+            font-size: 15px;
+            color: var(--text-muted);
+            max-width: 280px;
+        }
+
+        /* ── Loading State ── */
+        .loading-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60%;
+            text-align: center;
+            gap: 24px;
+        }
+
+        .loading-spinner {
+            display: flex;
+            gap: 8px;
+        }
+
+        .loading-spinner span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-1);
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .loading-spinner span:nth-child(2) { animation-delay: 0.16s; }
+        .loading-spinner span:nth-child(3) { animation-delay: 0.32s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .loading-subtext {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: -16px;
+        }
+
+        /* ── Response Card ── */
+        .response-card {
+            display: none;
+        }
+
+        .response-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .provider-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(124, 92, 252, 0.1);
+            border: 1px solid rgba(124, 92, 252, 0.2);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--accent-1);
+        }
+
+        .response-time-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(79, 138, 255, 0.1);
+            border: 1px solid rgba(79, 138, 255, 0.2);
+            font-size: 12px;
+            color: var(--accent-2);
+        }
+
+        .response-body {
+            padding: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            backdrop-filter: blur(10px);
+            line-height: 1.75;
+            font-size: 14px;
+        }
+
+        .response-body h1, .response-body h2, .response-body h3 {
+            color: var(--text-primary);
+            margin: 18px 0 10px;
+        }
+
+        .response-body h2 { font-size: 16px; }
+        .response-body h3 { font-size: 14px; }
+
+        .response-body strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .response-body ul, .response-body ol {
+            padding-left: 20px;
+            margin: 8px 0;
+        }
+
+        .response-body li {
+            margin-bottom: 4px;
+            color: var(--text-secondary);
+        }
+
+        .response-body p {
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+        }
+
+        /* ── Error State ── */
+        .error-box {
+            display: none;
+            padding: 16px 20px;
+            background: rgba(244, 63, 94, 0.08);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            border-radius: var(--radius);
+            color: var(--danger);
+            font-size: 13px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .error-box strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(124, 92, 252, 0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(124, 92, 252, 0.3); }
+
+        /* ── Responsive ── */
+        @media (max-width: 1024px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+            .panel {
+                max-height: none;
+            }
+            .panel-left {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header { padding: 16px 20px; }
+            .panel { padding: 20px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .line-item { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="header">
+    <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+            <h1>Oracle Siebel × Gen AI</h1>
+            <span>Order Summarization POC</span>
+        </div>
+    </div>
+    <div class="header-badge">API Connected</div>
+</header>
+
+<!-- ── Main Content ── -->
+<main class="main">
+
+    <!-- ── Left Panel: Order Form ── -->
+    <section class="panel panel-left">
+        <div class="panel-title">Order Details</div>
+
+        <form id="orderForm" class="form-grid">
+            <!-- Basic Info -->
+            <div class="form-group">
+                <label class="form-label">Order ID</label>
+                <input type="text" class="form-input" id="orderId" value="SBL-ORD-2026-0847" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-input" id="customerName" value="Acme Corporation" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Order Date</label>
+                <input type="date" class="form-input" id="orderDate" value="2026-06-20" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="orderStatus">
+                    <option value="Open">Open</option>
+                    <option value="In Progress" selected>In Progress</option>
+                    <option value="Complete">Complete</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <select class="form-select" id="orderPriority">
+                    <option value="Low">Low</option>
+                    <option value="Normal">Normal</option>
+                    <option value="High" selected>High</option>
+                    <option value="Critical">Critical</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Currency</label>
+                <select class="form-select" id="orderCurrency">
+                    <option value="USD" selected>USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="INR">INR (₹)</option>
+                </select>
+            </div>
+
+            <!-- Line Items -->
+            <div class="section-divider"><span>Line Items</span></div>
+
+            <div class="line-items-container" id="lineItemsContainer">
+                <!-- Items added via JS -->
+            </div>
+
+            <button type="button" class="btn-add-item" onclick="addLineItem()">＋ Add Line Item</button>
+
+            <!-- Order Total -->
+            <div class="order-total">
+                <span class="order-total-label">Order Total</span>
+                <span class="order-total-value" id="orderTotalDisplay">$20,000.00</span>
+            </div>
+
+            <!-- Additional Info -->
+            <div class="section-divider"><span>Additional Information</span></div>
+
+            <div class="form-group full-width">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" id="orderNotes" rows="2">Key account - customer requested expedited processing. Q3 renewal coming up.</textarea>
+            </div>
+            <div class="form-group full-width">
+                <label class="form-label">Shipping Address</label>
+                <input type="text" class="form-input" id="shippingAddress" value="123 Business Ave, Suite 500, New York, NY 10001">
+            </div>
+
+            <!-- User Question -->
+            <div class="section-divider"><span>Ask AI</span></div>
+
+            <div class="question-box">
+                <input type="text" class="question-input" id="userQuestion"
+                    placeholder="Ask a specific question... e.g. 'What upsell opportunities exist?'">
+                <div class="question-hint">Leave empty for a general order summary, or ask a specific question about this order.</div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn-submit" id="submitBtn">✨ Generate AI Summary</button>
+        </form>
+    </section>
+
+    <!-- ── Right Panel: AI Response ── -->
+    <section class="panel panel-right">
+        <div class="panel-title">AI Response</div>
+
+        <div class="error-box" id="errorBox"></div>
+
+        <!-- Placeholder -->
+        <div class="response-placeholder" id="responsePlaceholder">
+            <div class="placeholder-icon">🤖</div>
+            <div class="placeholder-text">Submit an order to get an AI-powered summary and insights</div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-container" id="loadingContainer">
+            <div class="loading-spinner">
+                <span></span><span></span><span></span>
+            </div>
+            <div class="loading-text">Analyzing order with AI...</div>
+            <div class="loading-subtext">This may take 1–2 minutes on a local model</div>
+        </div>
+
+        <!-- Response -->
+        <div class="response-card" id="responseCard">
+            <div class="response-meta">
+                <span class="provider-badge" id="providerBadge">ollama • llama3.2</span>
+                <span class="response-time-badge" id="timeBadge">⏱ 0.0s</span>
+            </div>
+            <div class="response-body" id="responseBody"></div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    // ── Sample Line Items ──
+    const sampleItems = [
+        { name: 'Enterprise CRM License', qty: 10, price: 1200.00 },
+        { name: 'Premium Support Package', qty: 1, price: 5000.00 },
+        { name: 'Data Migration Service', qty: 1, price: 3000.00 },
+    ];
+
+    let lineItemCount = 0;
+
+    function addLineItem(name = '', qty = 1, price = 0) {
+        lineItemCount++;
+        const container = document.getElementById('lineItemsContainer');
+        const div = document.createElement('div');
+        div.className = 'line-item';
+        div.id = `lineItem-${lineItemCount}`;
+        div.innerHTML = `
+            <div class="form-group">
+                <label class="form-label">Product</label>
+                <input type="text" class="form-input item-name" value="${name}" placeholder="Product name" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Qty</label>
+                <input type="number" class="form-input item-qty" value="${qty}" min="1" oninput="calcLineTotal(this)" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Unit Price</label>
+                <input type="number" class="form-input item-price" value="${price}" min="0" step="0.01" oninput="calcLineTotal(this)" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Total</label>
+                <input type="text" class="form-input item-total" value="${(qty * price).toFixed(2)}" readonly
+                    style="background: rgba(124,92,252,0.06); color: var(--accent-1); font-weight: 600;">
+            </div>
+            <button type="button" class="btn-remove-item" onclick="removeLineItem('lineItem-${lineItemCount}')">×</button>
+        `;
+        container.appendChild(div);
+        updateOrderTotal();
+    }
+
+    function removeLineItem(id) {
+        const el = document.getElementById(id);
+        if (el && document.querySelectorAll('.line-item').length > 1) {
+            el.remove();
+            updateOrderTotal();
+        }
+    }
+
+    function calcLineTotal(input) {
+        const row = input.closest('.line-item');
+        const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        row.querySelector('.item-total').value = (qty * price).toFixed(2);
+        updateOrderTotal();
+    }
+
+    function updateOrderTotal() {
+        let total = 0;
+        document.querySelectorAll('.item-total').forEach(el => {
+            total += parseFloat(el.value) || 0;
+        });
+        const currency = document.getElementById('orderCurrency').value;
+        const symbols = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
+        document.getElementById('orderTotalDisplay').textContent =
+            `${symbols[currency] || '$'}${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    }
+
+    // Initialize sample items
+    sampleItems.forEach(item => addLineItem(item.name, item.qty, item.price));
+    document.getElementById('orderCurrency').addEventListener('change', updateOrderTotal);
+
+    // ── Markdown Parser ──
+    function renderMarkdown(text) {
+        return text
+            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+            .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/^\s*[-•]\s+(.+)$/gm, '<li>$1</li>')
+            .replace(/^\s*\d+\.\s+(.+)$/gm, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+            .replace(/\n{2,}/g, '</p><p>')
+            .replace(/\n/g, '<br>')
+            .replace(/^/, '<p>')
+            .replace(/$/, '</p>');
+    }
+
+    // ── Form Submission ──
+    document.getElementById('orderForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const lineItems = [];
+        document.querySelectorAll('.line-item').forEach(row => {
+            const name = row.querySelector('.item-name').value.trim();
+            const qty = parseInt(row.querySelector('.item-qty').value) || 1;
+            const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            if (name) {
+                lineItems.push({
+                    product_name: name,
+                    quantity: qty,
+                    unit_price: price,
+                    total_price: qty * price,
+                });
+            }
+        });
+
+        if (lineItems.length === 0) {
+            showError('Please add at least one line item.');
+            return;
+        }
+
+        const totalAmount = lineItems.reduce((sum, item) => sum + item.total_price, 0);
+
+        const payload = {
+            order_id: document.getElementById('orderId').value.trim(),
+            customer_name: document.getElementById('customerName').value.trim(),
+            order_date: document.getElementById('orderDate').value,
+            status: document.getElementById('orderStatus').value,
+            priority: document.getElementById('orderPriority').value,
+            line_items: lineItems,
+            total_amount: totalAmount,
+            currency: document.getElementById('orderCurrency').value,
+            notes: document.getElementById('orderNotes').value.trim() || null,
+            shipping_address: document.getElementById('shippingAddress').value.trim() || null,
+            user_question: document.getElementById('userQuestion').value.trim() || null,
+        };
+
+        // Show loading
+        showState('loading');
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').textContent = '⏳ Analyzing...';
+
+        const startTime = Date.now();
+
+        try {
+            const response = await fetch('http://localhost:8000/api/v1/summarize-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || `HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            // Show response
+            document.getElementById('providerBadge').textContent = `${data.provider} • ${data.model}`;
+            document.getElementById('timeBadge').textContent = `⏱ ${elapsed}s`;
+            document.getElementById('responseBody').innerHTML = renderMarkdown(data.summary);
+            showState('response');
+
+        } catch (err) {
+            showError(err.message || 'Failed to connect to the API. Is the server running?');
+            showState('placeholder');
+        } finally {
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').textContent = '✨ Generate AI Summary';
+        }
+    });
+
+    function showState(state) {
+        document.getElementById('responsePlaceholder').style.display = state === 'placeholder' ? 'flex' : 'none';
+        document.getElementById('loadingContainer').style.display = state === 'loading' ? 'flex' : 'none';
+        document.getElementById('responseCard').style.display = state === 'response' ? 'block' : 'none';
+        if (state !== 'error') document.getElementById('errorBox').style.display = 'none';
+    }
+
+    function showError(message) {
+        const errorBox = document.getElementById('errorBox');
+        errorBox.innerHTML = `<strong>⚠ Error</strong>${message}`;
+        errorBox.style.display = 'block';
+    }
+
+    // Check API health on load
+    async function checkHealth() {
+        const badge = document.querySelector('.header-badge');
+        try {
+            const res = await fetch('http://localhost:8000/health');
+            const data = await res.json();
+            badge.textContent = `${data.provider} • ${data.model}`;
+            badge.style.background = 'rgba(16, 185, 129, 0.1)';
+            badge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+            badge.style.color = '#10b981';
+        } catch {
+            badge.textContent = 'API Disconnected';
+            badge.style.background = 'rgba(244, 63, 94, 0.1)';
+            badge.style.borderColor = 'rgba(244, 63, 94, 0.2)';
+            badge.style.color = '#f43f5e';
+        }
+    }
+    checkHealth();
+</script>
+
+</body>
+</html>
